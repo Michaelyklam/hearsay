@@ -47,6 +47,54 @@ final class NamingTests: XCTestCase {
         XCTAssertEqual(Voiceprint.samples(store: store, firstName: "tanner", excluding: "self"), [Self.axis(2)])
     }
 
+    // MARK: Known voices (people named before)
+
+    func k(_ name: String, _ stream: StreamKind, _ v: [Float]) -> KnownVoices.Sample { .init(name: name, stream: stream, voice: v) }
+
+    func testKnownVoicesNameGroupCallSpeakers() {
+        let speakers = [s("mic-1", 300, voice: Self.axis(0)), s("sys-1", 200, voice: Self.vec(1, cos: 0.8)),
+                        s("sys-2", 200, voice: Self.vec(2, cos: 0.7)), s("sys-3", 100, voice: Self.axis(9))]
+        let known = [k("Reese", .system, Self.axis(1)), k("Tyler Webb", .system, Self.axis(2)), k("Tanner", .mic, Self.axis(0))]
+        let out = Naming.name(.init(speakers: speakers, me: "Tanner", attendees: [], voiceprintSamples: [Self.axis(0)], knownVoices: known))
+        XCTAssertEqual(out.names, ["mic-1": "Tanner", "sys-1": "Reese", "sys-2": "Tyler Webb"])
+    }
+
+    func testKnownVoicesThresholdMarginAndStream() {
+        let known = [k("Reese", .system, Self.axis(1)), k("Alex", .system, Self.vec(1, cos: 0.9, toward: 3))]
+        // Below 0.65: no name.
+        XCTAssertEqual(KnownVoices.match(speakers: [s("sys-1", 9, voice: Self.vec(5, cos: 1))], samples: [k("Reese", .system, Self.vec(5, cos: 0.64))], taken: []), [:])
+        // Two known names too close together: no name.
+        XCTAssertEqual(KnownVoices.match(speakers: [s("sys-1", 9, voice: Self.axis(1))], samples: known, taken: []), [:])
+        // A room sample never names a call voice.
+        XCTAssertEqual(KnownVoices.match(speakers: [s("sys-1", 9, voice: Self.axis(1))], samples: [k("Reese", .mic, Self.axis(1))], taken: []), [:])
+        // A name already used in the meeting is not handed out again.
+        XCTAssertEqual(KnownVoices.match(speakers: [s("sys-1", 9, voice: Self.axis(1))], samples: [k("Reese", .system, Self.axis(1))], taken: ["reese"]), [:])
+        // Two voices in this meeting both close to Reese: neither gets it.
+        XCTAssertEqual(KnownVoices.match(speakers: [s("sys-1", 9, voice: Self.axis(1)), s("sys-2", 9, voice: Self.vec(1, cos: 0.9))],
+                                         samples: [k("Reese", .system, Self.axis(1))], taken: []), [:])
+    }
+
+    func testKnownVoicesNeverOverrideTypedOrLiveNames() {
+        let out = Naming.name(.init(speakers: [s("sys-1", 9, voice: Self.axis(1))], existing: ["sys-1": "Sam"], me: nil,
+                                    knownVoices: [k("Reese", .system, Self.axis(1))]))
+        XCTAssertEqual(out.names, ["sys-1": "Sam"])
+        let live = Naming.name(.init(speakers: [s("sys-1", 9, voice: Self.axis(1))], live: ["sys-1": "Jo"], me: nil,
+                                     knownVoices: [k("Reese", .system, Self.axis(1))]))
+        XCTAssertEqual(live.names, ["sys-1": "Jo"])
+    }
+
+    func testKnownVoiceSamplesSkipThisMeetingAndUnnamed() throws {
+        let store = MeetingStore(root: try TestSupport.tempRoot())
+        func add(_ id: String, _ names: [String: String], _ speakers: [Speaker]) throws {
+            try FileManager.default.createDirectory(at: store.folder(id), withIntermediateDirectories: true)
+            try store.saveMeeting(Meeting(id: id, title: id, startedAt: Date(), status: .done, speakerNames: names))
+            try store.saveTranscript(Transcript(engine: "parakeet", processedAt: Date(), speakers: speakers, utterances: []), id: id)
+        }
+        try add("a", ["sys-1": "Reese", "sys-2": " "], [s("sys-1", 5, voice: Self.axis(1)), s("sys-2", 5, voice: Self.axis(2)), s("sys-3", 5, voice: Self.axis(3))])
+        try add("self", ["sys-1": "Tyler"], [s("sys-1", 5, voice: Self.axis(4))])
+        XCTAssertEqual(KnownVoices.samples(store: store, excluding: "self"), [k("Reese", .system, Self.axis(1))])
+    }
+
     // MARK: Priority and 1:1 rules
 
     func testPriorityExistingThenLiveThenInvite() {

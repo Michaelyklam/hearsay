@@ -25,7 +25,8 @@ public enum SpeakerIdentity {
         let samples = me.map { Voiceprint.samples(store: store, firstName: Naming.firstName($0), excluding: meeting.id) } ?? []
         let out = Naming.name(Naming.Input(
             speakers: transcript.speakers, existing: meeting.speakerNames, live: live, me: me,
-            attendees: meeting.attendees, title: meeting.title, voiceprintSamples: samples))
+            attendees: meeting.attendees, title: meeting.title, voiceprintSamples: samples,
+            knownVoices: KnownVoices.samples(store: store, excluding: meeting.id)))
         meeting.speakerNames = out.names
         for i in transcript.speakers.indices {
             let s = transcript.speakers[i]

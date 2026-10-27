@@ -1,7 +1,8 @@
 import Foundation
 
 /// Speaker naming in spec priority order (step 7): names already in `meeting.json`; live names;
-/// then the voiceprint and the invite fill speakers still unnamed with names not already used.
+/// then the voiceprint and the invite; then voices named in other meetings (`KnownVoices`) fill
+/// speakers still unnamed, always with names not already used.
 public enum Naming {
     public struct Input: Sendable {
         public var speakers: [Speaker]
@@ -13,11 +14,15 @@ public enum Naming {
         public var attendees: [String]
         public var title: String
         public var voiceprintSamples: [[Float]]
+        /// Named voices from other meetings (`KnownVoices.samples`), for everyone else.
+        public var knownVoices: [KnownVoices.Sample]
 
         public init(speakers: [Speaker], existing: [String: String] = [:], live: [String: String] = [:], me: String?,
-                    attendees: [String] = [], title: String = "", voiceprintSamples: [[Float]] = []) {
+                    attendees: [String] = [], title: String = "", voiceprintSamples: [[Float]] = [],
+                    knownVoices: [KnownVoices.Sample] = []) {
             self.speakers = speakers; self.existing = existing; self.live = live; self.me = me
             self.attendees = attendees; self.title = title; self.voiceprintSamples = voiceprintSamples
+            self.knownVoices = knownVoices
         }
     }
 
@@ -51,6 +56,12 @@ public enum Naming {
                 if candidates.count == 1 { fill(candidates[0].id, displayName(others[0], title: input.title)) }
             }
         }
+        // Your own name is the voiceprint's job, so it is never handed out by voice here.
+        let others = input.speakers.filter { names[$0.id] == nil && $0.id != meID }
+        let taken = Set(names.values).union(myFirst.map { [$0] } ?? [])
+        let mine = myFirst?.lowercased()
+        let known = input.knownVoices.filter { firstName($0.name).lowercased() != mine }
+        for (id, n) in KnownVoices.match(speakers: others, samples: known, taken: taken) { fill(id, n) }
         return Output(names: names, me: meID)
     }
 
