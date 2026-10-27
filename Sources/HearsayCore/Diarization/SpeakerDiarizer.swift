@@ -7,12 +7,20 @@ public actor SpeakerDiarizer {
     public static let name = "fluidaudio-offline"
     private static let log = HearsayCore.logger("diarizer")
     private var manager: OfflineDiarizerManager?
+    private let config: OfflineDiarizerConfig
 
-    public init() {}
+    /// `threshold`: VBx's Euclidean distance between unit embeddings, in [0, 2]; lower splits more
+    /// voices (FluidAudio's default 0.6). `minSpeakers`: a floor on the number of voices.
+    public init(threshold: Double? = nil, minSpeakers: Int? = nil) {
+        var c = OfflineDiarizerConfig.default
+        if let threshold { c.clustering.threshold = threshold }
+        if let minSpeakers { c.clustering.minSpeakers = minSpeakers }
+        config = c
+    }
 
     public func load() async throws {
         guard manager == nil else { return }
-        let m = OfflineDiarizerManager(config: .default)
+        let m = OfflineDiarizerManager(config: config)
         try await m.prepareModels()
         manager = m
     }
