@@ -9,12 +9,32 @@ public actor SpeakerDiarizer {
     private var manager: OfflineDiarizerManager?
     private let config: OfflineDiarizerConfig
 
-    /// `threshold`: VBx's Euclidean distance between unit embeddings, in [0, 2]; lower splits more
-    /// voices (FluidAudio's default 0.6). `minSpeakers`: a floor on the number of voices.
-    public init(threshold: Double? = nil, minSpeakers: Int? = nil) {
+    /// Overrides of FluidAudio's offline defaults, for tuning (`hearsay diarize`). Nil keeps the default.
+    public struct Tuning: Sendable {
+        /// AHC cut distance between unit embeddings, [0, 2]; lower splits more voices (default 0.6).
+        public var threshold: Double?
+        /// VBx warm start: Fa weighs the acoustics (default 0.07), Fb the speaker prior (default 0.8).
+        public var fa: Double?
+        public var fb: Double?
+        /// VBx iterations (default 20, must be > 0); 1 stays closest to the AHC clusters.
+        public var vbxIterations: Int?
+        /// Shortest speech an embedding is taken from (default 1.0 s).
+        public var minEmbeddingSeconds: Double?
+        /// Take embeddings from overlapped speech too (default false).
+        public var includeOverlap = false
+        public var minSpeakers: Int?
+        public init() {}
+    }
+
+    public init(tuning: Tuning = Tuning()) {
         var c = OfflineDiarizerConfig.default
-        if let threshold { c.clustering.threshold = threshold }
-        if let minSpeakers { c.clustering.minSpeakers = minSpeakers }
+        if let v = tuning.threshold { c.clustering.threshold = v }
+        if let v = tuning.fa { c.clustering.warmStartFa = v }
+        if let v = tuning.fb { c.clustering.warmStartFb = v }
+        if let v = tuning.vbxIterations { c.vbx.maxIterations = v }
+        if let v = tuning.minEmbeddingSeconds { c.embedding.minSegmentDurationSeconds = v }
+        if tuning.includeOverlap { c.embedding.excludeOverlap = false }
+        if let v = tuning.minSpeakers { c.clustering.minSpeakers = v }
         config = c
     }
 
