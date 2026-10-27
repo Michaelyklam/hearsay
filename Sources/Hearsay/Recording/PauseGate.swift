@@ -1,10 +1,27 @@
 import os
 
-/// Recording pause, read on the audio threads: while paused, captures drop every buffer before the
-/// writer, the level box and the live feed see it. On resume the writers' timeline pads the gap with
-/// silence (as for any gap), so the files stay on meeting time.
+/// Recording pause, read on the audio threads. While paused, captures drop every buffer. The pause is
+/// cut out of the recording rather than padded: `shift` moves every later buffer's host time back by
+/// the total time paused, so the files and the live feed continue where they stopped (no seconds of
+/// zeros written on the audio thread at resume) and mic and call stay aligned, being shifted alike.
+/// Meeting time is therefore recorded time; levels and end detection keep the real host time.
 final class PauseGate: Sendable {
-    private let state = OSAllocatedUnfairLock(initialState: false)
-    var isPaused: Bool { state.withLock { $0 } }
-    func set(_ paused: Bool) { state.withLock { $0 = paused } }
+    private struct State { var paused = false; var pausedAt: UInt64 = 0; var offset: UInt64 = 0 }
+    private let state = OSAllocatedUnfairLock(initialState: State())
+
+    var isPaused: Bool { state.withLock { $0.paused } }
+
+    func set(_ paused: Bool, at host: UInt64) {
+        state.withLock { s in
+            guard s.paused != paused else { return }
+            if paused { s.pausedAt = host } else if host > s.pausedAt { s.offset += host - s.pausedAt }
+            s.paused = paused
+        }
+    }
+
+    /// A buffer's host time on the recording's clock (pauses removed).
+    func shift(_ host: UInt64) -> UInt64 {
+        let offset = state.withLock { $0.offset }
+        return host > offset ? host - offset : host
+    }
 }

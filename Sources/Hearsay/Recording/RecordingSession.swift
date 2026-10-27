@@ -62,7 +62,7 @@ final class RecordingSession {
     func setPaused(_ paused: Bool) {
         guard !isStopped, paused != isPaused else { return }
         isPaused = paused
-        pauseGate.set(paused)
+        pauseGate.set(paused, at: HostClock.now())
         if !paused { resumedAt = HostClock.seconds(HostClock.now()) }
         log.info(paused ? "Paused" : "Resumed")
         Announce.post(paused ? "Recording paused" : "Recording resumed")

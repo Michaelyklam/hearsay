@@ -102,6 +102,7 @@ final class RecordingUI {
     /// `willStart` waits for this, so a quick restart cannot interleave two meetings in the live engines.
     func didStop(_ s: RecordingSession, then processed: @escaping @MainActor () -> Void) {
         endWatch.end()
+        wasPaused = false
         LiveModel.shared.end()
         NotchPillController.shared.hide()
         pill = nil

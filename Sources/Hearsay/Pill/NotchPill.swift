@@ -214,7 +214,7 @@ struct NotchPillView: View {
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel(model.paused ? "Resume Recording" : "Pause Recording")
-                        .help(model.paused ? "Resume recording" : "Pause recording: nothing is recorded or transcribed until you resume")
+                        .help(model.paused ? "Resume recording" : "Pause recording: nothing is saved or transcribed until you resume, and the pause is cut out of the recording. macOS still shows the mic as in use.")
                     }
                     Button(action: model.onStop) {
                         Label("Stop", systemImage: "stop.fill").labelStyle(.titleAndIcon)

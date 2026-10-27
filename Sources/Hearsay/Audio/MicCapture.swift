@@ -83,10 +83,11 @@ final class MicCapture {
         try tryObjC("install mic tap") {
             input.installTap(onBus: 0, bufferSize: 4096, format: format) { buffer, when in
                 if gate?.isPaused == true { return }
-                let host = when.isHostTimeValid ? when.hostTime : HostClock.now()
+                let raw = when.isHostTimeValid ? when.hostTime : HostClock.now()
+                let host = gate?.shift(raw) ?? raw  // recording clock: pauses cut out
                 channelLog.observe(buffer)
                 let db = writer.append(buffer, hostTime: host)
-                onBuffer?(db, HostClock.seconds(host))
+                onBuffer?(db, HostClock.seconds(raw))
                 onPCM?(buffer, host)
             }
         }

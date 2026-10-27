@@ -150,9 +150,10 @@ final class SystemTapCapture {
             guard let buffer = AVAudioPCMBuffer(pcmFormat: tapFormat, bufferListNoCopy: &single, deallocator: nil),
                   buffer.frameLength > 0 else { return }
             let t = inTime.pointee
-            let host = t.mFlags.contains(.hostTimeValid) ? t.mHostTime : HostClock.now()
+            let raw = t.mFlags.contains(.hostTimeValid) ? t.mHostTime : HostClock.now()
+            let host = gate?.shift(raw) ?? raw  // recording clock: pauses cut out
             let db = writer.append(buffer, hostTime: host)
-            onBuffer?(db, HostClock.seconds(host))
+            onBuffer?(db, HostClock.seconds(raw))
             onPCM?(buffer, host)
         }, "AudioDeviceCreateIOProcIDWithBlock")
         procID = proc
