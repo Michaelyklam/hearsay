@@ -18,6 +18,8 @@ final class MicCapture {
     var onBuffer: (@Sendable (Float, Double) -> Void)?
     /// Every buffer and its host time, on the audio thread (the live transcript).
     var onPCM: (@Sendable (AVAudioPCMBuffer, UInt64) -> Void)?
+    /// Set by the session; while paused every buffer is dropped.
+    var gate: PauseGate?
 
     init(url: URL, meetingStartHostTime: UInt64) {
         self.url = url
@@ -76,9 +78,11 @@ final class MicCapture {
         let writer = self.writer!
         let onBuffer = self.onBuffer
         let onPCM = self.onPCM
+        let gate = self.gate
         let channelLog = ChannelLog(channels: Int(format.channelCount), frames: Int(format.sampleRate * 2), log: log)
         try tryObjC("install mic tap") {
             input.installTap(onBus: 0, bufferSize: 4096, format: format) { buffer, when in
+                if gate?.isPaused == true { return }
                 let host = when.isHostTimeValid ? when.hostTime : HostClock.now()
                 channelLog.observe(buffer)
                 let db = writer.append(buffer, hostTime: host)
