@@ -30,7 +30,6 @@ public enum SpeakerIdentity {
             speakers: transcript.speakers, existing: meeting.speakerNames, live: live, me: me,
             attendees: meeting.attendees, title: meeting.title, voiceprintSamples: samples,
             knownVoices: knownVoices.map { $0.filter { $0.meetingID != meeting.id } } ?? KnownVoices.samples(store: store, excluding: meeting.id)))
-        // Guesses from earlier runs stay guesses while the name is unchanged.
         // Guesses from earlier runs stay guesses while the name is unchanged. In an old meeting (no
         // record) every name not confirmed is treated as a guess from here on.
         let before = meeting

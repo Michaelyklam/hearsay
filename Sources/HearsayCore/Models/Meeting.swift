@@ -56,6 +56,8 @@ public struct Meeting: Codable, Sendable, Equatable {
         self.speakerNames = speakerNames; self.echoCancellation = echoCancellation
         self.appVersion = appVersion; self.attendees = attendees; self.me = me
         self.audioRemovedAt = audioRemovedAt; self.titleEditedByUser = titleEditedByUser
+        // A new meeting records its guesses from the start; only decoding an old file leaves this nil.
+        self.inferredSpeakers = []
     }
 
     enum CodingKeys: String, CodingKey {

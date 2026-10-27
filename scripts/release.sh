@@ -24,6 +24,11 @@ HAVE="$(tr -d '[:space:]' < VERSION)"
 grep -q "public static let version = \"$WANT\"" Sources/HearsayCore/Support/Version.swift \
   || die "HearsayCore.version does not say $WANT (Sources/HearsayCore/Support/Version.swift)"
 if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then die "tag $TAG already exists"; fi
+# Sparkle orders updates by CFBundleVersion = commit count of HEAD. A release cut from a branch (whose
+# unsquashed commits count higher than main will for a while) would leave later releases offered to nobody.
+[[ "$(git rev-parse --abbrev-ref HEAD)" == main ]] || die "release from main, not $(git rev-parse --abbrev-ref HEAD)"
+git fetch -q origin main
+[[ "$(git rev-parse HEAD)" == "$(git rev-parse origin/main)" ]] || die "main is not origin/main; pull or push first"
 command -v gh >/dev/null || die "gh is not installed"
 gh auth status >/dev/null 2>&1 || die "gh is not logged in (run: gh auth login)"
 [[ -f "$CASK" ]] || die "$CASK is missing"
@@ -71,6 +76,10 @@ SPARKLE_BIN="$ROOT/.build/artifacts/sparkle/Sparkle/bin"
 SIG="$("$SPARKLE_BIN/sign_update" "$ZIP")" || die "sign_update failed (is the Sparkle private key in the Keychain?)"
 [[ "$SIG" == *edSignature=* ]] || die "sign_update printed no signature: $SIG"
 BUILD="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Contents/Info.plist")"
+# The new build must be newer than the one the live feed offers, or Sparkle offers it to nobody.
+LIVE="$(curl -fsL https://github.com/vrennat/hearsay/releases/latest/download/appcast.xml 2>/dev/null \
+  | sed -n 's:.*<sparkle\:version>\([0-9]*\)</sparkle\:version>.*:\1:p' | head -1)"
+if [[ -n "$LIVE" ]] && (( BUILD <= LIVE )); then die "build $BUILD is not newer than the live appcast's $LIVE"; fi
 APPCAST="$OUT/appcast.xml"
 cat > "$APPCAST" <<XML
 <?xml version="1.0" encoding="utf-8"?>
