@@ -160,6 +160,7 @@ struct SpeakerNameField: View {
             .onChange(of: focus.wrappedValue) { old, new in if old == id, new != id { save() } }
             .onChange(of: model.names[id]) { _, n in if focus.wrappedValue != id { text = n ?? "" } }
             .onAppear { text = model.names[id] ?? "" }
+            .onDisappear(perform: save)  // closing the window mid-edit keeps what was typed
             .accessibilityLabel("Name for \(LiveModel.defaultLabel(id))")
             .help("Type a name, then press Return")
     }
