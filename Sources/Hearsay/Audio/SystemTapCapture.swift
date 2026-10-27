@@ -143,7 +143,6 @@ final class SystemTapCapture {
         let tapChannels = UInt32(tapFormat.channelCount)
         var proc: AudioDeviceIOProcID?
         try check(AudioDeviceCreateIOProcIDWithBlock(&proc, aggregateID, ioQueue) { _, inData, inTime, _, _ in
-            if gate?.isPaused == true { return }
             let list = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: inData))
             guard list.count > skip, list[skip].mNumberChannels == tapChannels else { return }
             var single = AudioBufferList(mNumberBuffers: 1, mBuffers: list[skip])
@@ -151,6 +150,7 @@ final class SystemTapCapture {
                   buffer.frameLength > 0 else { return }
             let t = inTime.pointee
             let raw = t.mFlags.contains(.hostTimeValid) ? t.mHostTime : HostClock.now()
+            if gate?.drops(raw) == true { return }
             let host = gate?.shift(raw) ?? raw  // recording clock: pauses cut out
             let db = writer.append(buffer, hostTime: host)
             onBuffer?(db, HostClock.seconds(raw))
