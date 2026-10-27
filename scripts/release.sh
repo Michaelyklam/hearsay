@@ -29,6 +29,20 @@ if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then die "tag $TAG alr
 [[ "$(git rev-parse --abbrev-ref HEAD)" == main ]] || die "release from main, not $(git rev-parse --abbrev-ref HEAD)"
 git fetch -q origin main
 [[ "$(git rev-parse HEAD)" == "$(git rev-parse origin/main)" ]] || die "main is not origin/main; pull or push first"
+# The build number build-app.sh will use, compared with the live feed before the long notarization wait.
+WANT_BUILD="${HEARSAY_BUILD_NUMBER:-$(git rev-list --count HEAD)}"
+FEED_FILE="$(mktemp)"
+FEED_STATUS="$(curl -sL -o "$FEED_FILE" -w '%{http_code}' https://github.com/vrennat/hearsay/releases/latest/download/appcast.xml || true)"
+case "$FEED_STATUS" in
+  200)
+    LIVE="$(sed -n 's:.*<sparkle\:version>\([0-9]*\)</sparkle\:version>.*:\1:p' "$FEED_FILE" | head -1 || true)"
+    [[ -n "$LIVE" ]] || die "the live appcast.xml has no sparkle:version"
+    (( WANT_BUILD > LIVE )) || die "build $WANT_BUILD is not newer than the live appcast's $LIVE; Sparkle would offer it to nobody"
+    echo "live appcast build $LIVE, this release $WANT_BUILD" ;;
+  404) echo "no live appcast.xml (first release with Sparkle)" ;;
+  *) die "could not fetch the live appcast.xml (HTTP '$FEED_STATUS'); check the network and retry" ;;
+esac
+rm -f "$FEED_FILE"
 command -v gh >/dev/null || die "gh is not installed"
 gh auth status >/dev/null 2>&1 || die "gh is not logged in (run: gh auth login)"
 [[ -f "$CASK" ]] || die "$CASK is missing"
@@ -76,10 +90,7 @@ SPARKLE_BIN="$ROOT/.build/artifacts/sparkle/Sparkle/bin"
 SIG="$("$SPARKLE_BIN/sign_update" "$ZIP")" || die "sign_update failed (is the Sparkle private key in the Keychain?)"
 [[ "$SIG" == *edSignature=* ]] || die "sign_update printed no signature: $SIG"
 BUILD="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Contents/Info.plist")"
-# The new build must be newer than the one the live feed offers, or Sparkle offers it to nobody.
-LIVE="$(curl -fsL https://github.com/vrennat/hearsay/releases/latest/download/appcast.xml 2>/dev/null \
-  | sed -n 's:.*<sparkle\:version>\([0-9]*\)</sparkle\:version>.*:\1:p' | head -1)"
-if [[ -n "$LIVE" ]] && (( BUILD <= LIVE )); then die "build $BUILD is not newer than the live appcast's $LIVE"; fi
+[[ "$BUILD" == "$WANT_BUILD" ]] || die "built CFBundleVersion $BUILD, expected $WANT_BUILD"
 APPCAST="$OUT/appcast.xml"
 cat > "$APPCAST" <<XML
 <?xml version="1.0" encoding="utf-8"?>
