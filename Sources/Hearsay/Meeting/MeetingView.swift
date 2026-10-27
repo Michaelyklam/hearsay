@@ -22,13 +22,18 @@ struct MeetingView: View {
                 }
                 MeetingHeader(model: model).padding(.horizontal, 16).padding(.vertical, 12)
                 Divider()
-                PlaybackBar(model: model).padding(.horizontal, 12).padding(.vertical, 8)
-                SpeakerTimeline(model: model).padding(.horizontal, 16).padding(.bottom, 10)
-                Divider()
-                TranscriptPanel(model: model, query: search)
+                if model.isRecording {
+                    // The live transcript and its speakers replace playback and the inspector.
+                    LiveRecordingPane(model: LiveModel.shared, search: search)
+                } else {
+                    PlaybackBar(model: model).padding(.horizontal, 12).padding(.vertical, 8)
+                    SpeakerTimeline(model: model).padding(.horizontal, 16).padding(.bottom, 10)
+                    Divider()
+                    TranscriptPanel(model: model, query: search)
+                }
             }
             .frame(minWidth: 400, maxWidth: .infinity)
-            if inspectorShown {
+            if inspectorShown, !model.isRecording {
                 // A fixed trailing column rather than `.inspector`: inside this NavigationSplitView
                 // (hosted in an NSWindow) `.inspector` crashed AppKit's constraint pass below about
                 // 1,100 pt wide, even with Text("x") as its content. See CLAUDE.md, Meeting UI.
@@ -320,9 +325,7 @@ struct TranscriptPanel: View {
                             ContentUnavailableView {
                                 Label("Recording", systemImage: "waveform")
                             } description: {
-                                Text("The transcript appears here after you stop. Follow along in the Live window. \(Consent.reminder)")
-                            } actions: {
-                                Button("Open Live Window") { LiveWindowController.shared.show() }
+                                Text("The transcript appears here after you stop. \(Consent.reminder)")
                             }
                         } else {
                             ContentUnavailableView("No Transcript Yet", systemImage: "text.bubble",

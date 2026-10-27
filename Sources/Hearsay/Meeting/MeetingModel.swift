@@ -40,7 +40,7 @@ final class MeetingModel {
         reload()
     }
 
-    var isRecording: Bool { AppModel.shared.session?.meetingID == id }
+    var isRecording: Bool { MainWindowModel.shared.recordingID == id }  // the preview's stand-in too
     var isQueued: Bool { AppModel.shared.queue.busy.contains(id) }
     /// Being transcribed now (the queue's current item), as opposed to waiting in the queue.
     var isProcessing: Bool { AppModel.shared.queue.current == id }
