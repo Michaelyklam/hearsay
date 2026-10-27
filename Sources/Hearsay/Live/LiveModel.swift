@@ -56,6 +56,8 @@ final class LiveModel {
     func label(_ id: String) -> String { names[id] ?? Self.defaultLabel(id) }
 
     func rename(_ id: String, to name: String) {
+        // After Stop the live engines belong to the finished (then the next) meeting.
+        guard isRecording else { return }
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         names[id] = trimmed.isEmpty ? nil : trimmed
         drafts[id] = nil
