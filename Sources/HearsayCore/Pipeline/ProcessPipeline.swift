@@ -191,10 +191,12 @@ public enum ProcessPipeline {
                 segments = try await engines.diarizer.diarize(t.samples)
                     .map { DiarSegment(slot: $0.slot, start: $0.start + t.startOffset, end: $0.end + t.startOffset) }
             } catch {
-                // One voice is a better transcript than none.
-                log.error("\(id, privacy: .public): diarizing \(t.kind.rawValue, privacy: .public) failed, one speaker: \(String(describing: error), privacy: .public)")
+                // One voice is a better transcript than none. In the file log too: this is the first
+                // thing to check when a call comes out as one speaker.
+                HSLog("diarizer").error("\(id): diarizing \(t.kind.rawValue) failed, one speaker: \(error)")
             }
             let built = Attribution.build(words: w, segments: segments, stream: t.kind)
+            HSLog("diarizer").info("\(id): \(t.kind.rawValue) \(Int(Double(t.samples.count) / AudioLoader.sampleRate)) s, \(segments.count) segments, \(Set(segments.map(\.slot)).count) diarizer voices, \(built.speakers.count) speakers after folding")
             speakers += built.speakers
             utterances += built.utterances
         }
