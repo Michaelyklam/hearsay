@@ -101,6 +101,7 @@ final class RecordingUI {
         let previous = finishing
         finishing = Task {
             await previous?.value
+            await LiveModel.shared.flushRenames()
             await LiveFeed.shared.finish()
             processed()
         }

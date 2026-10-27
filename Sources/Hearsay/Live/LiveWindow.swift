@@ -159,6 +159,7 @@ struct SpeakerNameField: View {
             .onSubmit(save)
             .onChange(of: focus.wrappedValue) { old, new in if old == id, new != id { save() } }
             .onChange(of: model.names[id]) { _, n in if focus.wrappedValue != id { text = n ?? "" } }
+            .onChange(of: text) { _, t in if focus.wrappedValue == id { model.drafts[id] = t } }
             .onAppear { text = model.names[id] ?? "" }
             .onDisappear(perform: save)  // closing the window mid-edit keeps what was typed
             .accessibilityLabel("Name for \(LiveModel.defaultLabel(id))")
@@ -166,6 +167,8 @@ struct SpeakerNameField: View {
     }
 
     private func save() {
+        // After Stop the meeting is over; a late save would land in the next meeting's live engines.
+        guard model.isRecording else { return }
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard t != (model.names[id] ?? "") else { return }
         model.rename(id, to: t)

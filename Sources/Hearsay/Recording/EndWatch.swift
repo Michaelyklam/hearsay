@@ -28,8 +28,9 @@ final class EndWatch {
         let cat = UNNotificationCategory(identifier: category, actions: [stop, keep], intentIdentifiers: [], options: [])
         NotificationRouter.shared.register(cat) { action, request in
             let id = request.content.userInfo["meetingID"] as? String
-            guard action == stopAction else { RecordingUI.shared.clearEndPrompt(); return }
+            // A banner from an earlier meeting must not answer this meeting's prompt.
             guard let s = AppModel.shared.session, (id ?? "").isEmpty || s.meetingID == id else { return }
+            guard action == stopAction else { RecordingUI.shared.clearEndPrompt(); return }
             AppModel.shared.stop(reason: "Meeting over? -> Stop")
         }
     }
