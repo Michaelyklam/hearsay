@@ -27,6 +27,7 @@ if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then die "tag $TAG alr
 command -v gh >/dev/null || die "gh is not installed"
 gh auth status >/dev/null 2>&1 || die "gh is not logged in (run: gh auth login)"
 [[ -f "$CASK" ]] || die "$CASK is missing"
+[[ -s Resources/sparkle-public-key.txt ]] || die "Resources/sparkle-public-key.txt is missing (docs/RELEASING.md, Sparkle keys)"
 
 # --- Build -----------------------------------------------------------------------------------------
 step "Building with scripts/build-app.sh"
@@ -61,13 +62,42 @@ ditto -c -k --keepParent "$APP" "$ZIP"
 SHA="$(shasum -a 256 "$ZIP" | awk '{print $1}')"
 echo "sha256 $SHA"
 
+# --- Appcast ---------------------------------------------------------------------------------------
+# One item, the release being published: Sparkle offers the newest build to everyone older. The EdDSA
+# signature uses the private key in this Mac's login Keychain (Sparkle's generate_keys).
+step "Signing the update and writing appcast.xml"
+SPARKLE_BIN="$ROOT/.build/artifacts/sparkle/Sparkle/bin"
+[[ -x "$SPARKLE_BIN/sign_update" ]] || die "no $SPARKLE_BIN/sign_update; run swift package resolve"
+SIG="$("$SPARKLE_BIN/sign_update" "$ZIP")" || die "sign_update failed (is the Sparkle private key in the Keychain?)"
+[[ "$SIG" == *edSignature=* ]] || die "sign_update printed no signature: $SIG"
+BUILD="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Contents/Info.plist")"
+APPCAST="$OUT/appcast.xml"
+cat > "$APPCAST" <<XML
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+  <channel>
+    <title>Hearsay</title>
+    <item>
+      <title>Hearsay $WANT</title>
+      <pubDate>$(LC_ALL=C date -u "+%a, %d %b %Y %H:%M:%S +0000")</pubDate>
+      <sparkle:version>$BUILD</sparkle:version>
+      <sparkle:shortVersionString>$WANT</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+      <sparkle:releaseNotesLink>https://github.com/vrennat/hearsay/releases/tag/$TAG</sparkle:releaseNotesLink>
+      <enclosure url="https://github.com/vrennat/hearsay/releases/download/$TAG/Hearsay-$WANT.zip" $SIG type="application/octet-stream"/>
+    </item>
+  </channel>
+</rss>
+XML
+xmllint --noout "$APPCAST" || die "appcast.xml is not valid XML"
+
 # --- Publish -----------------------------------------------------------------------------------------
 step "Tagging $TAG and pushing the tag"
 git tag -a "$TAG" -m "Hearsay $WANT"
 git push origin "$TAG"
 
 step "Creating GitHub release $TAG"
-gh release create "$TAG" "$ZIP" --title "Hearsay $WANT" --generate-notes --verify-tag
+gh release create "$TAG" "$ZIP" "$APPCAST" --title "Hearsay $WANT" --generate-notes --verify-tag
 
 # --- Cask ----------------------------------------------------------------------------------------------
 step "Updating $CASK"

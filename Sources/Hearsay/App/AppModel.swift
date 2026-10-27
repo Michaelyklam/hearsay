@@ -72,6 +72,7 @@ final class AppModel {
             Notifier.requestAuthorization()
             LaunchChecks.postCrashReports()
             DictationController.shared.settingsChanged()
+            if !CommandLine.arguments.contains(where: { $0.hasPrefix("--preview") }) { Updater.start() }
         }
         sleepGuard.recoverAfterCrash()
         MeetingPlayer.sweepPlaybackCopies()

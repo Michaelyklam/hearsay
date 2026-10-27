@@ -7,6 +7,9 @@ struct MainMenuCommands: Commands {
     let model: AppModel
 
     var body: some Commands {
+        CommandGroup(after: .appInfo) {
+            if Updater.available { Button("Check for Updates…") { Updater.checkForUpdates() } }
+        }
         CommandGroup(replacing: .newItem) {
             Button("New Recording") {
                 MainWindowController.shared.show()
