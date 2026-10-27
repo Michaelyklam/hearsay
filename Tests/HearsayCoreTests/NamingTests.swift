@@ -125,6 +125,7 @@ final class NamingTests: XCTestCase {
         XCTAssertEqual(try store.loadMeeting("guess").inferredSpeakers, [])
         // An old meeting (no record of guesses) counts only once confirmed.
         try add("old", ["sys-1": "Kim"], [s("sys-1", 5, voice: Self.axis(7))])
+        var old = try store.loadMeeting("old"); old.inferredSpeakers = nil; try store.saveMeeting(old)
         XCTAssertFalse(KnownVoices.samples(store: store).contains { $0.meetingID == "old" })
         try NameReview.confirm([.init(meetingID: "old", speaker: "sys-1")], name: "Kim", store: store)
         XCTAssertTrue(KnownVoices.samples(store: store).contains { $0.meetingID == "old" && $0.name == "Kim" })
