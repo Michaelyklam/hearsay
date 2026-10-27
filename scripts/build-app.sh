@@ -180,9 +180,10 @@ ENT="$STAGE/Hearsay.entitlements"
   echo '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">'
   echo '<plist version="1.0"><dict>'
   echo '  <key>com.apple.security.device.audio-input</key><true/>'
+  # Hardened runtime: without this the Developer ID build's calendar request is refused with no prompt.
+  echo '  <key>com.apple.security.personal-information.calendars</key><true/>'
   if (( MAS )); then
     echo '  <key>com.apple.security.app-sandbox</key><true/>'
-    echo '  <key>com.apple.security.personal-information.calendars</key><true/>'
     echo '  <key>com.apple.security.network.client</key><true/>'
     echo '  <key>com.apple.security.files.user-selected.read-write</key><true/>'
     echo '  <key>com.apple.security.files.bookmarks.app-scope</key><true/>'
