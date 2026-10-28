@@ -5,7 +5,7 @@
 ## Build
 
 - 2026-10-23: Always `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift build` and `... swift test`. `xcode-select` points at the Command Line Tools; mixing toolchains breaks the build.
-- 2026-10-23: `swift-tools-version: 6.4` (the first with `.macOS(.v27)`), platforms `.macOS(.v27)` (amendment: macOS 27 on Apple Silicon), Swift 5 language mode. FluidAudio is added with `traits: []`, which drops its unused 8 MB NemoTextProcessing binary. See `docs/DEPENDENCIES.md` for the verified API survey.
+- 2026-10-27: `swift-tools-version: 6.3` (was 6.4 for `.macOS(.v27)`; the floor is now 26, and Tanner's work Mac has Xcode with Swift 6.3.3; `AudioLoader.convert` wraps `fill` in `withoutActuallyEscaping` because 6.3 rejects the capture). Earlier: 6.4, platforms `.macOS(.v27)` (amendment: macOS 27 on Apple Silicon), Swift 5 language mode. FluidAudio is added with `traits: []`, which drops its unused 8 MB NemoTextProcessing binary. See `docs/DEPENDENCIES.md` for the verified API survey.
 - 2026-10-23: Pins are exact: FluidAudio `0.17.7`, swift-argument-parser `1.8.2`. Read `.build/checkouts/FluidAudio` before using any FluidAudio API; the README examples lag the source.
 
 ## Layout
