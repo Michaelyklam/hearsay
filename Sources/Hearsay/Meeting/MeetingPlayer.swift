@@ -69,7 +69,9 @@ final class MeetingPlayer {
             MainActor.assumeIsolated {
                 guard let self else { return }
                 self.time = t.seconds.isFinite ? t.seconds : 0
-                self.isPlaying = self.player.rate != 0
+                // Only on change: every assignment notifies observers (the play button, the menu).
+                let playing = self.player.rate != 0
+                if playing != self.isPlaying { self.isPlaying = playing }
             }
         }
     }

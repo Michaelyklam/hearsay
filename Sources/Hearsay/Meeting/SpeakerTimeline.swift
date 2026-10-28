@@ -38,29 +38,31 @@ struct SpeakerTimeline: View {
 
     private func lanesCanvas(_ lanes: [MeetingModel.SpeakerRow]) -> some View {
         let index = Dictionary(uniqueKeysWithValues: lanes.enumerated().map { ($1.id, $0) })
+        // Lanes are the first rows of `model.speakers`, so lane i has the speaker colour at i.
+        let colors = lanes.map { model.color(for: $0.id) }
+        let lines = model.lines.lines
         let span = span
         let height = CGFloat(lanes.count) * Self.laneHeight + CGFloat(lanes.count - 1) * 4
         return GeometryReader { geo in
             let w = geo.size.width
+            // The bars do not read the player, so playback (5 time updates a second) redraws only the
+            // playhead overlay instead of every line's bar.
             Canvas { ctx, size in
-                for (i, _) in lanes.enumerated() {
+                for i in lanes.indices {
                     let y = CGFloat(i) * (Self.laneHeight + 4)
                     ctx.fill(Path(roundedRect: CGRect(x: 0, y: y, width: size.width, height: Self.laneHeight), cornerRadius: 3),
                              with: .style(.quaternary))
                 }
-                for line in model.lines.lines {
+                for line in lines {
                     guard let i = index[line.speaker] else { continue }
                     let x0 = CGFloat(line.start / span) * size.width
                     let x1 = max(x0 + 2, CGFloat(line.end / span) * size.width)
                     let y = CGFloat(i) * (Self.laneHeight + 4)
                     ctx.fill(Path(roundedRect: CGRect(x: x0, y: y, width: x1 - x0, height: Self.laneHeight), cornerRadius: 2),
-                             with: .color(model.color(for: line.speaker)))
-                }
-                if let p = model.player {
-                    let x = CGFloat(p.time / span) * size.width
-                    ctx.fill(Path(CGRect(x: x - 0.75, y: -2, width: 1.5, height: size.height + 4)), with: .style(.primary))
+                             with: .color(colors[i]))
                 }
             }
+            .overlay { if let p = model.player { TimelinePlayhead(player: p, span: span) } }
             .contentShape(Rectangle())
             .gesture(DragGesture(minimumDistance: 0).onChanged { g in
                 guard let p = model.player else { return }
@@ -69,5 +71,19 @@ struct SpeakerTimeline: View {
             .help(model.player == nil ? "Who spoke when" : "Who spoke when. Click to play from that point.")
         }
         .frame(height: height)
+    }
+}
+
+/// The playhead line: the only part of the timeline that reads the playback time.
+private struct TimelinePlayhead: View {
+    let player: MeetingPlayer
+    let span: Double
+
+    var body: some View {
+        Canvas { ctx, size in
+            let x = CGFloat(player.time / span) * size.width
+            ctx.fill(Path(CGRect(x: x - 0.75, y: -2, width: 1.5, height: size.height + 4)), with: .style(.primary))
+        }
+        .allowsHitTesting(false)
     }
 }

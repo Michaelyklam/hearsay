@@ -65,7 +65,7 @@ final class MeetingModel {
     func reload() {
         if let m = try? store.loadMeeting(id) { meeting = m }
         transcript = (try? store.loadTranscript(id)) ?? nil
-        lines = TranscriptLines.load(store: store, id: id)
+        lines = TranscriptLines.load(store: store, id: id, transcript: transcript)
         liveNames = ((try? store.loadLive(id)) ?? nil)?.speakerNames ?? [:]
         speakers = makeSpeakers()
         files = Self.listFiles(store.folder(id))

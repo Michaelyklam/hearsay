@@ -32,8 +32,10 @@ final class MainWindowModel {
     func select(_ id: String) {
         if !meetings.contains(where: { $0.id == id }) { refresh() }
         search = ""
+        // A new selection builds its model, which loads from disk; reload only one already showing.
+        let alreadyShown = detail?.id == id
         selection = id
-        detail?.reload()
+        if alreadyShown { detail?.reload() }
     }
 
     /// The processing queue finished a meeting, or something else rewrote it.

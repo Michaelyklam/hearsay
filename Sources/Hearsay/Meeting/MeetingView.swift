@@ -255,17 +255,9 @@ struct PlaybackBar: View {
             .buttonStyle(.borderless).controlSize(.large)
             .keyboardShortcut(.space, modifiers: [])
             .help(p.isPlaying ? "Pause (Space)" : "Play (Space)")
-            if !compact {
-                Text("\(MenuContent.elapsed(p.time)) / \(MenuContent.elapsed(p.duration))")
-                    .font(.callout.monospacedDigit()).foregroundStyle(.secondary)
-                    .lineLimit(1).fixedSize()
-                    .accessibilityHidden(true)
-            }
-            Slider(value: Binding(get: { p.time }, set: { p.seek(to: $0) }), in: 0...max(p.duration, 0.1))
+            if !compact { PlaybackTimeLabel(player: p) }
+            PlaybackSlider(player: p)
                 .frame(minWidth: compact ? 40 : 120, maxWidth: .infinity)
-                .accessibilityLabel("Playback position")
-                .accessibilityValue("\(ElapsedLabel.spoken(p.time)) of \(ElapsedLabel.spoken(p.duration))")
-                .help("Playback position")
             Picker("Audio source", selection: Binding(get: { p.mix }, set: { p.mix = $0 })) {
                 ForEach(MeetingPlayer.Mix.allCases, id: \.self) { Text($0.rawValue).tag($0) }
             }
@@ -287,6 +279,29 @@ struct PlaybackBar: View {
     }
 }
 
+/// The time readout and the slider are the only transport parts that read the playback time, so
+/// they are views of their own: the row (three `ViewThatFits` variants) is not rebuilt 5 times a second.
+private struct PlaybackTimeLabel: View {
+    let player: MeetingPlayer
+    var body: some View {
+        Text("\(MenuContent.elapsed(player.time)) / \(MenuContent.elapsed(player.duration))")
+            .font(.callout.monospacedDigit()).foregroundStyle(.secondary)
+            .lineLimit(1).fixedSize()
+            .accessibilityHidden(true)
+    }
+}
+
+private struct PlaybackSlider: View {
+    let player: MeetingPlayer
+    var body: some View {
+        let p = player
+        Slider(value: Binding(get: { p.time }, set: { p.seek(to: $0) }), in: 0...max(p.duration, 0.1))
+            .accessibilityLabel("Playback position")
+            .accessibilityValue("\(ElapsedLabel.spoken(p.time)) of \(ElapsedLabel.spoken(p.duration))")
+            .help("Playback position")
+    }
+}
+
 private struct SourcePickerStyle: ViewModifier {
     let menu: Bool
     func body(content: Content) -> some View {
@@ -301,7 +316,6 @@ private struct SourcePickerStyle: ViewModifier {
 struct TranscriptPanel: View {
     let model: MeetingModel
     var query = ""
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var shown: [TranscriptLines.Line] {
         let q = query.trimmingCharacters(in: .whitespaces)
@@ -312,6 +326,7 @@ struct TranscriptPanel: View {
     }
 
     var body: some View {
+        let shown = shown  // filtered once per render, not once per use
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 8) {
@@ -340,34 +355,57 @@ struct TranscriptPanel: View {
                         ContentUnavailableView.search(text: query)
                     }
                     ForEach(shown) { line in
-                        let current = model.currentLine == line.id
-                        HStack(alignment: .firstTextBaseline, spacing: 8) {
-                            Button { model.player?.seek(to: line.start); model.player?.play() } label: {
-                                Text(MenuContent.elapsed(line.start)).monospacedDigit().font(.callout)
-                            }
-                            .buttonStyle(.link)
-                            .disabled(model.player == nil)
-                            .frame(width: 52, alignment: .trailing)
-                            .help("Play from here")
-                            .accessibilityLabel("Play from \(ElapsedLabel.spoken(line.start))")
-                            Text(model.displayName(line.speaker)).fontWeight(.semibold).lineLimit(1).fixedSize()
-                                .foregroundStyle(model.color(for: line.speaker))
-                            Text(line.text).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                        .padding(.vertical, 2).padding(.horizontal, 4)
-                        .background(current ? Color.accentColor.opacity(0.15) : .clear, in: RoundedRectangle(cornerRadius: 4))
-                        .accessibilityElement(children: .combine)
-                        .accessibilityAddTraits(current ? .isSelected : [])
-                        .id(line.id)
+                        TranscriptLineRow(model: model, line: line).id(line.id)
                     }
                 }
                 .padding(12)
             }
+            .background { FollowPlayback(model: model, proxy: proxy) }
+        }
+    }
+}
+
+/// One transcript line. It reads the playing line itself, so playback re-renders only the rows on
+/// screen, not the panel's whole list (which filters and diffs every line).
+struct TranscriptLineRow: View {
+    let model: MeetingModel
+    let line: TranscriptLines.Line
+
+    var body: some View {
+        let current = model.currentLine == line.id
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Button { model.player?.seek(to: line.start); model.player?.play() } label: {
+                Text(MenuContent.elapsed(line.start)).monospacedDigit().font(.callout)
+            }
+            .buttonStyle(.link)
+            .disabled(model.player == nil)
+            .frame(width: 52, alignment: .trailing)
+            .help("Play from here")
+            .accessibilityLabel("Play from \(ElapsedLabel.spoken(line.start))")
+            Text(model.displayName(line.speaker)).fontWeight(.semibold).lineLimit(1).fixedSize()
+                .foregroundStyle(model.color(for: line.speaker))
+            Text(line.text).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.vertical, 2).padding(.horizontal, 4)
+        .background(current ? Color.accentColor.opacity(0.15) : .clear, in: RoundedRectangle(cornerRadius: 4))
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(current ? .isSelected : [])
+    }
+}
+
+/// Scrolls the transcript to the playing line. An empty view of its own, so reading the playback
+/// position does not make the transcript panel re-render.
+private struct FollowPlayback: View {
+    let model: MeetingModel
+    let proxy: ScrollViewProxy
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        Color.clear
             .onChange(of: model.currentLine) { _, i in
                 guard let i else { return }
                 withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) { proxy.scrollTo(i, anchor: .center) }
             }
-        }
     }
 }
 
