@@ -24,6 +24,7 @@ final class RecordingUI {
         EndWatch.registerCategory()
         PillPreview.startIfRequested()
         MenuPreview.startIfRequested()
+        DictationPreview.startIfRequested()
     }
 
     /// Before the meeting folder exists: notification permission (first recording) and the calendar event.

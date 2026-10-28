@@ -11,13 +11,16 @@ final class DictationBubbleModel {
 
 /// The small bubble near the bottom of the screen showing streaming words while dictating. A
 /// borderless, non-activating panel that never takes focus, so the paste lands in the user's app.
+/// The panel is a clear, click-through box of the largest size; the bubble inside hugs its text,
+/// starting as a small pill around "Listening…" and growing up to the panel's width and two lines,
+/// anchored at the bottom centre so it grows up and outwards.
 @MainActor
 final class DictationBubble {
     static let shared = DictationBubble()
     let model = DictationBubbleModel()
     private var panel: NSPanel?
     private var hideWork: DispatchWorkItem?
-    static let size = NSSize(width: 460, height: 64)
+    static let size = NSSize(width: 460, height: 72)
 
     func show() {
         hideWork?.cancel()
@@ -51,12 +54,25 @@ final class DictationBubble {
         Announce.post("Dictation listening")
     }
 
-    func update(_ text: String) { model.text = text }
+    /// Renders the bubble's view (at the backing scale) to a PNG and logs the panel size.
+    func snapshot(to url: URL) {
+        guard let host = panel?.contentView?.subviews.first,
+              let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { return }
+        host.cacheDisplay(in: host.bounds, to: rep)
+        try? rep.representation(using: .png, properties: [:])?.write(to: url)
+    }
+
+    func update(_ text: String) {
+        model.text = text
+        // The window shadow follows the drawn bubble, which just changed size.
+        DispatchQueue.main.async { [weak self] in self?.panel?.invalidateShadow() }
+    }
 
     /// Shows `note` (if any) for `seconds`, then hides.
     func finish(note: String? = nil, after seconds: Double = 0) {
         model.listening = false
         model.note = note
+        DispatchQueue.main.async { [weak self] in self?.panel?.invalidateShadow() }
         if let note { Announce.post(note) }
         hideWork?.cancel()
         let work = DispatchWorkItem { [weak self] in MainActor.assumeIsolated { self?.panel?.orderOut(nil) } }
@@ -80,13 +96,14 @@ struct DictationBubbleView: View {
             Text(model.note ?? (model.text.isEmpty ? "Listening…" : model.text))
                 .lineLimit(2).truncationMode(.head)
                 .foregroundStyle(model.text.isEmpty && model.note == nil ? .secondary : .primary)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.horizontal, 16)
-        .frame(width: DictationBubble.size.width, height: DictationBubble.size.height)
+        .padding(.horizontal, 16).padding(.vertical, 10)
+        .frame(minHeight: 40)
         .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 16))
         .accessibilityElement(children: .combine)
         .accessibilityLabel(model.listening ? "Dictation, listening" : "Dictation")
         .accessibilityAddTraits(.updatesFrequently)
+        .frame(width: DictationBubble.size.width, height: DictationBubble.size.height, alignment: .bottom)
     }
 }
