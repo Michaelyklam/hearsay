@@ -79,15 +79,20 @@ struct MeetingView: View {
 struct MeetingHeader: View {
     let model: MeetingModel
     @State private var title = ""
+    @FocusState private var editing: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 TextField("Title", text: $title)
                     .textFieldStyle(.plain).font(.title2.weight(.semibold))
-                    .onSubmit { model.setTitle(title) }
+                    .focused($editing)
+                    .onSubmit(save)
+                    // Clicking away or closing the window keeps what was typed, like Return.
+                    .onChange(of: editing) { was, now in if was, !now { save() } }
+                    .onDisappear(perform: save)
                     .accessibilityLabel("Meeting title")
-                    .help("Edit the title and press Return to save")
+                    .help("Edit the title; it saves when you press Return or click away")
                 Spacer()
                 let word = model.statusWord
                 Label(word, systemImage: model.statusSymbol)
@@ -113,7 +118,12 @@ struct MeetingHeader: View {
             }
         }
         .onAppear { title = model.meeting.title }
-        .onChange(of: model.meeting.title) { _, t in title = t }
+        .onChange(of: model.meeting.title) { _, t in if !editing { title = t } }
+    }
+
+    private func save() {
+        guard title != model.meeting.title else { return }
+        model.setTitle(title)
     }
 }
 
@@ -196,6 +206,7 @@ struct SpeakerRowView: View {
     let model: MeetingModel
     let row: MeetingModel.SpeakerRow
     @State private var text = ""
+    @FocusState private var editing: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
@@ -215,9 +226,20 @@ struct SpeakerRowView: View {
             if model.canRename {
                 TextField("Name", text: $text, prompt: Text("Name \(row.label)"))
                     .textFieldStyle(.roundedBorder).labelsHidden()
-                    .onSubmit { model.rename(row.id, to: text) }
+                    .focused($editing)
+                    .onSubmit(save)
+                    // Names save without Return: on a short pause in typing, on clicking away, and when
+                    // the row goes away. The pause matters because clicking empty space on macOS often
+                    // leaves the field focused, so the click-away save alone would not fire.
+                    .task(id: text) {
+                        guard editing else { return }
+                        try? await Task.sleep(for: .milliseconds(700))
+                        if !Task.isCancelled { save() }
+                    }
+                    .onChange(of: editing) { was, now in if was, !now { save() } }
+                    .onDisappear(perform: save)
                     .accessibilityLabel("Name for \(row.label)")
-                    .help("Type a name and press Return to save")
+                    .help("Type a name; it saves as you type")
                 if row.name != nil, model.isGuess(row.id) {
                     HStack(spacing: 6) {
                         Label("Guessed", systemImage: "questionmark.circle").font(.caption).foregroundStyle(.secondary)
@@ -231,7 +253,7 @@ struct SpeakerRowView: View {
             }
             if row.name == nil {
                 if let h = model.hints[row.id] {
-                    Button { text = h.name } label: {
+                    Button { text = h.name; save() } label: {
                         VStack(alignment: .leading, spacing: 1) {
                             Text("Sounds like \(h.name)").font(.caption)
                             Text("“\(h.quote)”").font(.caption2).foregroundStyle(.secondary).lineLimit(2)
@@ -239,8 +261,8 @@ struct SpeakerRowView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Suggestion: sounds like \(h.name)")
-                    .accessibilityHint("Fills the name field. Press Return in the field to save.")
-                    .help("A suggestion from how people addressed this voice. Click to use it, then press Return.")
+                    .accessibilityHint("Names this voice \(h.name).")
+                    .help("A suggestion from how people addressed this voice. Click to use it.")
                 }
                 if let summary = model.summaries[row.id] {
                     Text(summary).font(.caption).foregroundStyle(.secondary).italic()
@@ -250,7 +272,15 @@ struct SpeakerRowView: View {
             }
         }
         .onAppear { text = row.name ?? "" }
-        .onChange(of: row.name) { _, n in text = n ?? "" }
+        // While typing, a save reloads the row; don't write the trimmed name back over the field.
+        .onChange(of: row.name) { _, n in if !editing { text = n ?? "" } }
+    }
+
+    /// Saves only a real change, so focus moves and pauses never rewrite the files or confirm a guess.
+    private func save() {
+        let t = text.trimmingCharacters(in: .whitespaces)
+        guard t != (row.name ?? "") else { return }
+        model.rename(row.id, to: t)
     }
 }
 
