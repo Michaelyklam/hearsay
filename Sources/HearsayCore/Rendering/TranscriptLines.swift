@@ -20,7 +20,13 @@ public struct TranscriptLines: Sendable, Equatable {
     public init(source: Source, lines: [Line]) { self.source = source; self.lines = lines }
 
     public static func load(store: MeetingStore, id: String) -> TranscriptLines {
-        if let t = try? store.loadTranscript(id) {
+        load(store: store, id: id, transcript: (try? store.loadTranscript(id)) ?? nil)
+    }
+
+    /// As `load(store:id:)` with `transcript.json` already decoded (nil: none), so a caller that also
+    /// needs the transcript decodes it once.
+    public static func load(store: MeetingStore, id: String, transcript: Transcript?) -> TranscriptLines {
+        if let t = transcript {
             let cleanup = (try? store.loadCleanup(id)).flatMap { $0 }.flatMap { $0.matches(t) ? $0 : nil }
             var texts = t.utterances.map(\.text)
             if let cleanup {

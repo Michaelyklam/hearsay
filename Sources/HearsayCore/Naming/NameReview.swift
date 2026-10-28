@@ -47,15 +47,16 @@ public enum NameReview {
     @discardableResult
     public static func confirm(_ entries: [Entry], name: String, store: MeetingStore) throws -> Int {
         var done = 0
+        var touched = Set<String>()
         for (id, es) in Dictionary(grouping: entries, by: \.meetingID) {
             var m = try store.loadMeeting(id)
             var changed = false
             for e in es where m.speakerNames[e.speaker]?.caseInsensitiveCompare(name) == .orderedSame && m.nameIsGuess(e.speaker) {
                 m.confirmName(e.speaker); changed = true; done += 1
             }
-            if changed { try store.saveMeeting(m) }
+            if changed { try store.saveMeeting(m); touched.insert(id) }
         }
-        if done > 0 { try IndexRenderer.reindex(store: store) }
+        if done > 0 { try IndexRenderer.update(store: store, ids: touched) }
         return done
     }
 }

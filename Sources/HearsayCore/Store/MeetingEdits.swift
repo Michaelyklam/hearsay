@@ -10,7 +10,7 @@ public enum MeetingEdits {
         m.speakerNames[speaker] = n.isEmpty ? nil : n
         if !n.isEmpty { m.confirmName(speaker) }
         try store.saveMeeting(m)
-        try IndexRenderer.reindex(store: store)
+        try IndexRenderer.update(store: store, ids: [id])
         return n
     }
 
@@ -24,7 +24,7 @@ public enum MeetingEdits {
         m.title = Titler.title(for: m)
         m.titleEditedByUser = true
         try store.saveMeeting(m)
-        try IndexRenderer.reindex(store: store)
+        try IndexRenderer.update(store: store, ids: [id])
         return m.title
     }
 
@@ -35,7 +35,7 @@ public enum MeetingEdits {
         var m = try store.loadMeeting(id)
         m.title = title
         try store.saveMeeting(m)
-        try IndexRenderer.reindex(store: store)
+        try IndexRenderer.update(store: store, ids: [id])
         return m.title
     }
 }

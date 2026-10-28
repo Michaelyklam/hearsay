@@ -29,7 +29,7 @@ public enum NameHints {
     static let thanks: [[String]] = [["thank", "you"], ["thanks"], ["cheers"]]
     static let retold: Set<String> = ["said", "says", "say", "like", "told", "tells", "tell", "asked", "asks"]
 
-    struct Turn { let speaker: String; let start: Double; let end: Double; let text: String }
+    struct Turn { let speaker: String; let start: Double; var end: Double; var text: String }
     enum Direction { case next, previous }
 
     /// Capitalized first names from the invite plus names typed in any meeting.
@@ -79,7 +79,9 @@ public enum NameHints {
         var turns: [Turn] = []
         for u in utterances.sorted(by: { $0.start < $1.start }) {
             if let last = turns.last, last.speaker == u.speaker {
-                turns[turns.count - 1] = Turn(speaker: u.speaker, start: last.start, end: max(last.end, u.end), text: last.text + " " + u.text)
+                // In place: rebuilding the Turn copied the whole run's text for every utterance.
+                turns[turns.count - 1].end = max(last.end, u.end)
+                turns[turns.count - 1].text += " " + u.text
             } else {
                 turns.append(Turn(speaker: u.speaker, start: u.start, end: u.end, text: u.text))
             }
@@ -118,8 +120,11 @@ public enum NameHints {
         return out
     }
 
+    /// Built once: `union` allocates a new set, and `bare` runs twice per word.
+    private static let bareTrim = CharacterSet.punctuationCharacters.union(.symbols)
+
     static func bare(_ token: Substring) -> String {
-        String(token).trimmingCharacters(in: .punctuationCharacters.union(.symbols))
+        String(token).trimmingCharacters(in: bareTrim)
     }
 
     /// Names addressed in one sentence with the direction each points.
